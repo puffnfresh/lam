@@ -102,7 +102,7 @@ method' i t c as b = do
   let ps = flip TypeParam [] . Ident . (:[]) <$> [succ s..initialFresh]
   r <- asks classTypeParams
   let ps' = (if c then r else []) ++ ps
-  return . MethodDecl (Public : [Static | c]) ps' (Just t) (Ident i) as [] . MethodBody . Just . Block . (:[]) . BlockStmt . Return $ Just b
+  return . MethodDecl (Public : [Static | c]) ps' (Just t) (Ident i) as [] Nothing . MethodBody . Just . Block . (:[]) . BlockStmt . Return $ Just b
 
 freshTV :: Fresh ClassType
 freshTV = do
@@ -276,8 +276,8 @@ memberDecls =
   decl . classDeclBody . classBodyDecls
 
 methodName :: Traversal' MemberDecl Ident
-methodName g (MethodDecl a b c x d e f) =
-  (\x' -> MethodDecl a b c x' d e f) <$> g x
+methodName h (MethodDecl a b c x d e f g) =
+  (\x' -> MethodDecl a b c x' d e f g) <$> h x
 methodName _ o =
   pure o
 

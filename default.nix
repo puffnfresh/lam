@@ -3,9 +3,9 @@ with import <nixpkgs> { };
 runCommand "lam" {
   src = ./.;
   buildInputs = [
-    oraclejdk8
+    jdk
     (haskellPackages.ghcWithPackages (p: [
-      (haskellPackages.callPackage <language-java> { })
+      p.language-java
       p.lens
       p.shake
     ]))
