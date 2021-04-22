@@ -347,7 +347,7 @@ main = shakeArgs shakeOptions $ do
     cs <- getDirectoryFiles "src" ["//*.java"]
     let cs' = ("build" </>) . dropDirectory1 . dropDirectory1 <$> cs
     need cs'
-    () <- cmd "javac" cs'
+    () <- cmd "javac -target 1.8" cs'
     classFiles <- getDirectoryFiles "" ["build" </> "//*.class"]
     cmd (Cwd "build") "jar cf" [makeRelative "build" out] $ dropDirectory1 <$> classFiles
 
