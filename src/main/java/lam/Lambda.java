@@ -28,4 +28,12 @@ public class Lambda<A, B> {
     public static <A, B, C> Lambda<B, Lambda<A, C>> flip(final Lambda<A, Lambda<B, C>> lambda) {
         return λ(b -> λ(a -> lambda.$(a).$(b)));
     }
+
+    public <C> Lambda<A, C> bind(final Function<B, Lambda<A, C>> f) {
+        return λ(a -> f.apply($(a)).$(a));
+    }
+
+    public static <A, B> Lambda<A, B> point(final B b) {
+        return λ(a -> b);
+    }
 }

@@ -351,9 +351,6 @@ main = shakeArgs shakeOptions $ do
     classFiles <- getDirectoryFiles "" ["build" </> "//*.class"]
     cmd (Cwd "build") "jar cf" [makeRelative "build" out] $ dropDirectory1 <$> classFiles
 
-  -- language-java doesn't like unicode
-  "build/lam/Lambda.java" %> copyFile' "src/main/java/lam/Lambda.java"
-
   "build//*.java" %> \out -> do
     let src = srcJava </> dropDirectory1 out
     need [src]
