@@ -3,7 +3,7 @@ with import <nixpkgs> { };
 runCommand "lam" {
   src = ./.;
   buildInputs = [
-    jdk
+    jdk8_headless
     (haskellPackages.ghcWithPackages (p: [
       (haskell.lib.appendPatch p.language-java (fetchpatch {
         url = "https://github.com/vincenthz/language-java/commit/4a52a781ddb9c66b8b66d0960e1390eaa74e5e49.patch";

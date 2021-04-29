@@ -2,17 +2,19 @@
 module Main where
 
 import Control.Lens
-import Control.Monad.State
-import Control.Monad.Reader
-import Data.Foldable
-import Data.Maybe
+import Control.Monad (guard)
+import Control.Monad.State (StateT, evalStateT, get, modify)
+import Control.Monad.Reader (Reader, asks, runReader)
+import Data.Foldable (traverse_)
+import Data.Maybe (fromMaybe)
+import Data.Monoid (Endo (..))
 import Development.Shake
 import Development.Shake.FilePath
-import Language.Java.Parser
-import Language.Java.Pretty
+import Language.Java.Parser (compilationUnit, parser)
+import Language.Java.Pretty (pretty)
 import Language.Java.Syntax
-import Text.PrettyPrint
-import Text.Parsec.Error
+import Text.PrettyPrint (render)
+import Text.Parsec.Error (ParseError)
 
 data ClassInfo
   = ClassInfo { classTypeParams :: [TypeParam]
@@ -292,43 +294,81 @@ droppingRight i =
 -- Main
 
 transformAST :: CompilationUnit -> CompilationUnit
-transformAST ast = ast & memberDecls <>~ fromMaybe [] z ++ fromMaybe [] z'
+transformAST ast =
+  appEndo
+    (foldMap
+      (Endo . derive)
+      [ functor
+      , apply
+      , applicative
+      , bind
+      , monad
+      , bifunctor
+      ])
+    ast
   where
-    params = ast ^.. decl . classDeclTypeParams . folded
-    paramStrings = params ^.. folded . typeParamIdent . identString
-    hasMethod s = has $ memberDecls . folded . memberDecl' . methodName . identString . only s
-    z = do
+    derive f ast' =
+      ast' & memberDecls <>~ fromMaybe [] (f ast')
+    params =
+      ast ^.. decl . classDeclTypeParams . folded
+    paramStrings =
+      params ^.. folded . typeParamIdent . identString
+    hasMethod s =
+      has $ memberDecls . folded . memberDecl' . methodName . identString . only s
+    typeCon1 f = do
+      i <- ast ^? decl . classDeclIdent . identString
+      a <- paramStrings ^? xi 0
+      let ts = paramStrings ^.. droppingRight 1
+      xs <- f
+      pure $ (\l -> MemberDecl . runCon1 l i ts a $ ClassInfo params) <$> xs
+    typeCon2 f = do
       i <- ast ^? decl . classDeclIdent . identString
       a <- paramStrings ^? xi 1
       b <- paramStrings ^? xi 0
       let ts = paramStrings ^.. droppingRight 2
-          xs = [ bifunctorFirst
-               , bifunctorSecond
-               ]
-      guard (hasMethod "bimap" ast)
-      return $ (\l -> MemberDecl . runCon2 l i ts a b $ ClassInfo params) <$> xs
-    z' = do
-      i <- ast ^? decl . classDeclIdent . identString
-      a <- paramStrings ^? xi 0
-      let ts = paramStrings ^.. droppingRight 1
-          xs = [ monadAp
-               , bindJoin
-               , bindForever
-               , applicativeMap
-               , applicativeWhen
-               , applicativeUnless
-               , applyBefore
-               , applyThen
-               , applyMap2
-               , applyMap3
-               , applyMap4
-               , functorAs
-               , functorVoided
-               -- , foldableLength
-               ]
-      guard (hasMethod "point" ast)
-      guard (hasMethod "bind" ast)
-      return $ (\l -> MemberDecl . runCon1 l i ts a $ ClassInfo params) <$> xs
+      xs <- f
+      pure $ (\l -> MemberDecl . runCon2 l i ts a b $ ClassInfo params) <$> xs
+    bifunctor ast' = typeCon2 $ do
+      guard (hasMethod "bimap" ast')
+      pure
+        [ bifunctorFirst
+        , bifunctorSecond
+        ]
+    monad ast' = typeCon1 $ do
+      guard (hasMethod "point" ast')
+      guard (hasMethod "bind" ast')
+      pure
+        [ monadAp
+        ]
+    bind ast' = typeCon1 $ do
+      guard (hasMethod "bind" ast')
+      pure
+        [ bindJoin
+        , bindForever
+        ]
+    applicative ast' = typeCon1 $ do
+      guard (hasMethod "ap" ast')
+      guard (hasMethod "point" ast')
+      pure
+        [ applicativeMap
+        , applicativeWhen
+        , applicativeUnless
+        ]
+    apply ast' = typeCon1 $ do
+      guard (hasMethod "ap" ast')
+      pure
+        [ applyBefore
+        , applyThen
+        , applyMap2
+        , applyMap3
+        , applyMap4
+        ]
+    functor ast' = typeCon1 $ do
+      guard (hasMethod "map" ast')
+      pure
+        [ functorAs
+        , functorVoided
+        ]
 
 run :: String -> Either ParseError String
 run c =
@@ -347,7 +387,7 @@ main = shakeArgs shakeOptions $ do
     cs <- getDirectoryFiles "src" ["//*.java"]
     let cs' = ("build" </>) . dropDirectory1 . dropDirectory1 <$> cs
     need cs'
-    () <- cmd "javac -target 1.8" cs'
+    () <- cmd "javac -source 8 -target 8" cs'
     classFiles <- getDirectoryFiles "" ["build" </> "//*.class"]
     cmd (Cwd "build") "jar cf" [makeRelative "build" out] $ dropDirectory1 <$> classFiles
 
