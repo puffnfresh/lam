@@ -32,4 +32,8 @@ public abstract class List<A> {
     public static <A> List<A> point(final A a) {
         return cons(a, nil());
     }
+
+    public <B> B foldMap(final Monoid<B> m, final Function<A, B> f) {
+        return fold(m.zero(), a -> b -> m.append(f.apply(a), b));
+    }
 }

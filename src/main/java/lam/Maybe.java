@@ -28,4 +28,8 @@ public abstract class Maybe<A> {
     public static <A> Maybe<A> point(final A a) {
         return just(a);
     }
+
+    public <B> B foldMap(final Monoid<B> m, final Function<A, B> f) {
+        return fold(m.zero(), f);
+    }
 }

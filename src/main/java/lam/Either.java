@@ -48,4 +48,8 @@ public abstract class Either<A, B> {
     public B folded(final Monoid<B> m) {
         return fold(a -> m.zero(), a -> a);
     }
+
+    public <C> C foldMap(final Monoid<C> m, final Function<B, C> f) {
+        return fold(a -> m.zero(), f);
+    }
 }

@@ -154,7 +154,9 @@ functorVoided f _ =
   method "voided" (f $ typeRef "Unit") [] $ call (n "as") [unit']
 
 monadAp :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
-monadAp f a = freshTV >>= \o -> method "ap" (f o) [formalClass (f (func a o)) "f"] $ primaryCall "f" "bind" [lambda "g" $ call (n "bind") [lambda "a" $ call (n "point") [primaryCall "g" "apply" [n' "a"]]]]
+monadAp f a = do
+  o <- freshTV
+  method "ap" (f o) [formalClass (f (func a o)) "f"] $ primaryCall "f" "bind" [lambda "g" $ call (n "bind") [lambda "a" $ call (n "point") [primaryCall "g" "apply" [n' "a"]]]]
 
 bindJoin :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
 bindJoin f a =
@@ -298,6 +300,7 @@ transformAST ast =
       , bind
       , monad
       , bifunctor
+      , foldable
       ])
     ast
   where
@@ -362,6 +365,11 @@ transformAST ast =
       pure
         [ functorAs
         , functorVoided
+        ]
+    foldable ast' = typeCon1 $ do
+      guard (hasMethod "foldMap" ast')
+      pure
+        [ foldableLength
         ]
 
 run :: String -> Either ParseError String
