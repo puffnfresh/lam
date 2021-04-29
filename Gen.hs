@@ -155,16 +155,10 @@ functorVoided f _ =
 
 monadAp :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
 monadAp f a = freshTV >>= \o -> method "ap" (f o) [formalClass (f (func a o)) "f"] $ primaryCall "f" "bind" [lambda "g" $ call (n "bind") [lambda "a" $ call (n "point") [primaryCall "g" "apply" [n' "a"]]]]
--- MethodRef (Name [Ident "this"]) $ Ident "map"
 
 bindJoin :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
 bindJoin f a =
   staticMethod "join" (f a) [formalClass (f (f a)) "e"] $ primaryCall "e" "bind" [id']
-
--- bindMap :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
--- bindMap f a = do
---   o <- freshTV
---   method "map" (f o) [formalClass (func a o) "f"] $ call (n "bind") [lambda "a" $ call (n "point") [primaryCall "f" "apply" [n' "a"]]]
 
 bindForever :: (ClassType -> ClassType) -> t -> Fresh MemberDecl
 bindForever f _ = do
