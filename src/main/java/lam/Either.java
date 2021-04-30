@@ -45,10 +45,6 @@ public abstract class Either<A, B> {
         return fold(ac.andThen(Either::left), bd.andThen(Either::right));
     }
 
-    public B folded(final Monoid<B> m) {
-        return fold(a -> m.zero(), a -> a);
-    }
-
     public <C> C foldMap(final Monoid<C> m, final Function<B, C> f) {
         return fold(a -> m.zero(), f);
     }

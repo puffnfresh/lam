@@ -211,6 +211,10 @@ applyMap4 f a = do
   r <- freshTV
   method "map4" (f r) [formalClass (func a (func o (func p (func q r)))) "f", formalClass (f o) "c", formalClass (f p) "d", formalClass (f q) "e"] $ primaryCall "e" "ap" [primaryCall "d" "ap" [primaryCall "c" "ap" [call (n "map") [n' "f"]]]]
 
+foldableFolded :: t -> ClassType -> Fresh MemberDecl
+foldableFolded _ a =
+  method "folded" a [formalClass (con1 "Monoid" [] a) "m"] $ call (n "foldMap") [n' "m", lambda "a" $ n' "a"]
+
 foldableLength :: t -> u -> Fresh MemberDecl
 foldableLength _ _ =
   method' "length" (PrimType IntT) False [] $ call (n "foldMap") [FieldAccess . ClassFieldAccess (n "Monoid") $ Ident "sumInteger", const' . Lit $ Int 1]
@@ -369,7 +373,8 @@ transformAST ast =
     foldable ast' = typeCon1 $ do
       guard (hasMethod "foldMap" ast')
       pure
-        [ foldableLength
+        [ foldableFolded
+        , foldableLength
         ]
 
 run :: String -> Either ParseError String
