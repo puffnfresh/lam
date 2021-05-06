@@ -211,9 +211,34 @@ applyMap4 f a = do
   r <- freshTV
   method "map4" (f r) [formalClass (func a (func o (func p (func q r)))) "f", formalClass (f o) "c", formalClass (f p) "d", formalClass (f q) "e"] $ primaryCall "e" "ap" [primaryCall "d" "ap" [primaryCall "c" "ap" [call (n "map") [n' "f"]]]]
 
+foldable1FoldMap :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
+foldable1FoldMap f a = do
+  r <- freshTV
+  method "foldMap" r [formalClass (con1 "Monoid" [] r) "m", formalClass (func a r) "f"] $ call (n "foldMap1") [n' "m", n' "f"]
+
+foldable1Folded :: t -> ClassType -> Fresh MemberDecl
+foldable1Folded _ a =
+  method "folded1" a [formalClass (con1 "Semigroup" [] a) "m"] $ call (n "foldMap1") [n' "m", lambda "a" $ n' "a"]
+
 foldableFolded :: t -> ClassType -> Fresh MemberDecl
 foldableFolded _ a =
   method "folded" a [formalClass (con1 "Monoid" [] a) "m"] $ call (n "foldMap") [n' "m", lambda "a" $ n' "a"]
+
+foldableMonoidFunction :: String -> t -> ClassType -> Fresh MemberDecl
+foldableMonoidFunction name _ a =
+  method' name (PrimType BooleanT) False [formalClass (func a (typeRef "Boolean")) "f"] $ call (n "foldMap") [FieldAccess . ClassFieldAccess (n "Monoid") $ Ident name, n' "f"]
+
+foldableAny :: t -> ClassType -> Fresh MemberDecl
+foldableAny =
+  foldableMonoidFunction "any"
+
+foldableAll :: t -> ClassType -> Fresh MemberDecl
+foldableAll =
+  foldableMonoidFunction "all"
+
+foldableIsEmpty :: t -> u -> Fresh MemberDecl
+foldableIsEmpty _ _ =
+  method' "isEmpty" (PrimType BooleanT) False [] $ call (n "any") [const' . Lit $ Boolean True]
 
 foldableLength :: t -> u -> Fresh MemberDecl
 foldableLength _ _ =
@@ -305,6 +330,7 @@ transformAST ast =
       , monad
       , bifunctor
       , foldable
+      , foldable1
       ])
     ast
   where
@@ -370,10 +396,19 @@ transformAST ast =
         [ functorAs
         , functorVoided
         ]
+    foldable1 ast' = typeCon1 $ do
+      guard (hasMethod "foldMap1" ast')
+      pure
+        [ foldable1FoldMap
+        , foldable1Folded
+        ]
     foldable ast' = typeCon1 $ do
       guard (hasMethod "foldMap" ast')
       pure
         [ foldableFolded
+        , foldableAny
+        , foldableAll
+        , foldableIsEmpty
         , foldableLength
         ]
 
