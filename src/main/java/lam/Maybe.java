@@ -21,6 +21,10 @@ public abstract class Maybe<A> {
         };
     }
 
+    public Maybe<A> orElse(final Maybe<A> b) {
+        return fold(b, Maybe::just);
+    }
+
     public <B> Maybe<B> bind(final Function<A, Maybe<B>> f) {
         return fold(nothing(), f);
     }
