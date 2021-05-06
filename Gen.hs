@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import Control.Lens
+import Control.Lens hiding ((<.>))
 import Control.Monad (guard)
 import Control.Monad.State (StateT, evalStateT, get, modify)
 import Control.Monad.Reader (Reader, asks, runReader)
 import Data.Foldable (traverse_)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Monoid (Endo (..))
 import Development.Shake
 import Development.Shake.FilePath
@@ -15,8 +15,12 @@ import Language.Java.Pretty (pretty)
 import Language.Java.Syntax
 import Text.PrettyPrint (render)
 import Text.Parsec.Error (ParseError)
+import System.IO (hPrint, stderr)
+import Data.Bifoldable (bitraverse_)
+import System.Directory (createDirectory, createDirectoryIfMissing, makeAbsolute)
+import System.Console.GetOpt (OptDescr (Option), ArgDescr (OptArg, ReqArg))
 
-data ClassInfo
+newtype ClassInfo
   = ClassInfo { classTypeParams :: [TypeParam]
               }
 
@@ -417,25 +421,92 @@ run c =
   render . pretty . transformAST <$> parser compilationUnit c
 
 srcJava :: FilePath
-srcJava = "src" </> "main" </> "java"
+srcJava =
+  "src" </> "main" </> "java"
+
+classes :: FilePath
+classes =
+  "build" </> "classes"
+
+lamFlags :: [OptDescr (Either String String)]
+lamFlags =
+  [ Option "" ["lam-version"] (ReqArg Right "VERSION") "Version string for lam."
+  ]
+
+snapshotVersion :: String
+snapshotVersion =
+  "0.0.1-SNAPSHOT"
 
 main :: IO ()
-main = shakeArgs shakeOptions $ do
-  want ["build" </> "lam.jar"]
+main = shakeArgsWith (shakeOptions { shakeChange = ChangeDigest }) lamFlags $ \flags targets -> pure . Just $ do
+  let
+    version =
+      fromMaybe snapshotVersion (listToMaybe flags)
+    jar t =
+      "lam-" <> t <> version <.> "jar"
+    sha1 =
+      (<.> "sha1")
+    mainJar =
+      jar ""
+    javadocJar =
+      jar "javadoc-"
+    sourcesJar =
+      jar "sources-"
+
+  want
+    [ "build" </> sha1 mainJar
+    , "build" </> sha1 javadocJar
+    , "build" </> sha1 sourcesJar
+    ]
 
   phony "clean" $ removeFilesAfter "build" ["//*"]
 
-  "build" </> "lam.jar" %> \out -> do
-    cs <- getDirectoryFiles "src" ["//*.java"]
-    let cs' = ("build" </>) . dropDirectory1 . dropDirectory1 <$> cs
-    need cs'
-    () <- cmd "javac -source 8 -target 8" cs'
-    classFiles <- getDirectoryFiles "" ["build" </> "//*.class"]
-    cmd (Cwd "build") "jar cf" [makeRelative "build" out] $ dropDirectory1 <$> classFiles
+  "build" </> "*.sha1" %> \out -> do
+    let c = fromMaybe out (stripExtension "sha1" out)
+    need [c]
+    sha1sum <- cmd "sha1sum" c
+    traverse_ (liftIO . writeFile' out) (take 1 (words (fromStdout sha1sum)))
 
-  "build//*.java" %> \out -> do
-    let src = srcJava </> dropDirectory1 out
+  "build" </> sourcesJar %> \out -> do
+    cs <- getDirectoryFiles "" ["build" </> srcJava <//> "*.java"]
+    need cs
+    out' <- liftIO (makeAbsolute out)
+    cmd_ (Cwd ("build" </> srcJava)) "jar cf" out' (makeRelative ("build" </> srcJava) <$> cs)
+
+  "build" </> "doc" </> "index.html" %> \out -> do
+    cs <- getDirectoryFiles "" ["build" </> srcJava </> "//*.java"]
+    need cs
+    liftIO (removeFiles ("build" </> "doc") ["//*"])
+    liftIO (createDirectoryIfMissing False ("build" </> "doc"))
+    out' <- liftIO (makeAbsolute ("build" </> "doc"))
+    cmd_ (Cwd ("build" </> srcJava)) "javadoc -charset utf-8 -subpackages . -d" out' "lam"
+
+  "build" </> javadocJar %> \out -> do
+    need ["build" </> "doc" </> "index.html"]
+    out' <- liftIO (makeAbsolute out)
+    cmd_ (Cwd ("build" </> "doc")) "jar cf " [out'] "."
+
+  "build" </> mainJar %> \out -> do
+    cs <- getDirectoryFiles srcJava ["//*.java"]
+    need ((\c -> classes </> c -<.> "class") <$> cs)
+    out' <- liftIO (makeAbsolute out)
+    cs' <- getDirectoryFiles classes ["//*.class"]
+    cmd_ (Cwd classes) "jar cf" [out'] cs'
+
+  batch 10 (classes <//> "*.class" %>) pure $ \outs -> do
+    let
+      srcs =
+        (\o -> makeRelative classes o -<.> "java") <$> outs
+    cs <- getDirectoryFiles "" [srcJava <//> "*.java"]
+    need (("build" </>) <$> cs)
+    liftIO (createDirectoryIfMissing False classes)
+    dest <- liftIO (makeAbsolute classes)
+    cmd_ (Cwd ("build" </> srcJava)) "javac -source 8 -target 8 -d" (dest : srcs)
+
+  "build" </> srcJava <//> "*.java" %> \out -> do
+    alwaysRerun
+    let src = makeRelative "build" out
     need [src]
-    content <- readFile' $ srcJava </> dropDirectory1 out
+    content <- readFile' src
     let content' = run content
-    traverse_ (writeFile' out) content'
+    bitraverse_ (fail . show) (writeFile' out) content'
