@@ -22,5 +22,6 @@ pkgs.runCommand "lam" {
   export LANG=en_US.UTF-8
   export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
   runhaskell Gen.hs
-  mv build/lam.jar $out
+  mkdir -p $out
+  mv build/*.jar $out/
 "
