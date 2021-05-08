@@ -1,6 +1,6 @@
 let
   pkgs =
-    import (fetchTarball https://channels.nixos.org/nixos-20.09/nixexprs.tar.xz) { };
+    import (fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.09.tar.gz) { };
 in
 pkgs.runCommand "lam" {
   src = ./.;
