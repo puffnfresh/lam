@@ -468,10 +468,10 @@ main = shakeArgsWith (shakeOptions { shakeChange = ChangeDigest }) lamFlags $ \f
     traverse_ (liftIO . writeFile' out) (take 1 (words (fromStdout sha1sum)))
 
   "build" </> sourcesJar %> \out -> do
-    cs <- getDirectoryFiles "" ["build" </> srcJava <//> "*.java"]
-    need cs
+    cs <- getDirectoryFiles "" [srcJava <//> "*.java"]
+    need (("build" </>) <$> cs)
     out' <- liftIO (makeAbsolute out)
-    cmd_ (Cwd ("build" </> srcJava)) "jar cf" out' (makeRelative ("build" </> srcJava) <$> cs)
+    cmd_ (Cwd ("build" </> srcJava)) "jar cf" out' (makeRelative srcJava <$> cs)
 
   "build" </> "doc" </> "index.html" %> \out -> do
     cs <- getDirectoryFiles "" ["build" </> srcJava </> "//*.java"]
