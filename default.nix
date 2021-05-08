@@ -1,10 +1,14 @@
 let
+  nixpkgs =
+    fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.09.tar.gz;
   pkgs =
-    import (fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.09.tar.gz) { };
+    import nixpkgs { };
 in
 pkgs.runCommand "lam" {
-  src = ./.;
+  src = pkgs.lib.sourceByRegex ./. [ "^Gen\.hs$" "^src.*" "^version\.txt$" ];
   buildInputs = [
+    pkgs.zip
+    pkgs.unzip
     pkgs.jdk8_headless
     (pkgs.haskellPackages.ghcWithPackages (p: [
       (pkgs.haskell.lib.appendPatch p.language-java (pkgs.fetchpatch {
@@ -15,13 +19,19 @@ pkgs.runCommand "lam" {
       p.shake
     ]))
   ];
-} "
-  cp -r $src src
-  chmod -R u+w src
-  cd src
+} ''
+  unpackPhase
+  cd "$sourceRoot"
+
   export LANG=en_US.UTF-8
   export LOCALE_ARCHIVE=${pkgs.glibcLocales}/lib/locale/locale-archive
   runhaskell Gen.hs
+
+  . ${nixpkgs}/pkgs/build-support/release/functions.sh
+  for jar in build/*.jar; do
+    canonicalizeJar $jar
+  done
+
   mkdir -p $out
   mv build/*.jar $out/
-"
+''

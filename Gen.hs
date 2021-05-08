@@ -469,7 +469,7 @@ main = shake (shakeOptions { shakeChange = ChangeDigest }) $ do
     liftIO (removeFiles ("build" </> "doc") ["//*"])
     liftIO (createDirectoryIfMissing False ("build" </> "doc"))
     out' <- liftIO (makeAbsolute ("build" </> "doc"))
-    cmd_ (Cwd ("build" </> srcJava)) "javadoc -charset utf-8 -subpackages . -d" out' "lam"
+    cmd_ (Cwd ("build" </> srcJava)) "javadoc -notimestamp -charset utf-8 -subpackages . -d" out' "lam"
 
   "build" </> javadocJar %> \out -> do
     need ["build" </> "doc" </> "index.html"]
