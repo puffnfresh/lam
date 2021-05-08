@@ -5,8 +5,9 @@ import Control.Lens hiding ((<.>))
 import Control.Monad (guard)
 import Control.Monad.State (StateT, evalStateT, get, modify)
 import Control.Monad.Reader (Reader, asks, runReader)
+import Data.Char (isSpace)
 import Data.Foldable (traverse_)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo (..))
 import Development.Shake
 import Development.Shake.FilePath
@@ -15,10 +16,8 @@ import Language.Java.Pretty (pretty)
 import Language.Java.Syntax
 import Text.PrettyPrint (render)
 import Text.Parsec.Error (ParseError)
-import System.IO (hPrint, stderr)
 import Data.Bifoldable (bitraverse_)
-import System.Directory (createDirectory, createDirectoryIfMissing, makeAbsolute)
-import System.Console.GetOpt (OptDescr (Option), ArgDescr (OptArg, ReqArg))
+import System.Directory (createDirectoryIfMissing, makeAbsolute)
 
 newtype ClassInfo
   = ClassInfo { classTypeParams :: [TypeParam]
@@ -215,8 +214,8 @@ applyMap4 f a = do
   r <- freshTV
   method "map4" (f r) [formalClass (func a (func o (func p (func q r)))) "f", formalClass (f o) "c", formalClass (f p) "d", formalClass (f q) "e"] $ primaryCall "e" "ap" [primaryCall "d" "ap" [primaryCall "c" "ap" [call (n "map") [n' "f"]]]]
 
-foldable1FoldMap :: (ClassType -> ClassType) -> ClassType -> Fresh MemberDecl
-foldable1FoldMap f a = do
+foldable1FoldMap :: t -> ClassType -> Fresh MemberDecl
+foldable1FoldMap _ a = do
   r <- freshTV
   method "foldMap" r [formalClass (con1 "Monoid" [] r) "m", formalClass (func a r) "f"] $ call (n "foldMap1") [n' "m", n' "f"]
 
@@ -428,20 +427,11 @@ classes :: FilePath
 classes =
   "build" </> "classes"
 
-lamFlags :: [OptDescr (Either String String)]
-lamFlags =
-  [ Option "" ["lam-version"] (ReqArg Right "VERSION") "Version string for lam."
-  ]
-
-snapshotVersion :: String
-snapshotVersion =
-  "0.0.1-SNAPSHOT"
-
 main :: IO ()
-main = shakeArgsWith (shakeOptions { shakeChange = ChangeDigest }) lamFlags $ \flags targets -> pure . Just $ do
+main = shake (shakeOptions { shakeChange = ChangeDigest }) $ do
+  version <- liftIO (filter (not . isSpace) <$> readFile "version.txt")
+
   let
-    version =
-      fromMaybe snapshotVersion (listToMaybe flags)
     jar t =
       "lam-" <> t <> version <.> "jar"
     sha1 =
@@ -473,7 +463,7 @@ main = shakeArgsWith (shakeOptions { shakeChange = ChangeDigest }) lamFlags $ \f
     out' <- liftIO (makeAbsolute out)
     cmd_ (Cwd ("build" </> srcJava)) "jar cf" out' (makeRelative srcJava <$> cs)
 
-  "build" </> "doc" </> "index.html" %> \out -> do
+  "build" </> "doc" </> "index.html" %> \_ -> do
     cs <- getDirectoryFiles "" ["build" </> srcJava </> "//*.java"]
     need cs
     liftIO (removeFiles ("build" </> "doc") ["//*"])
